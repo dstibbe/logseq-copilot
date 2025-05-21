@@ -22,22 +22,26 @@ const API_PROVIDERS = {}
 let settings = {...DEFAULT_SETTINGS}
 
 async function verifyApiKey() {
-  if (!settings.API_Key || !settings.API_Endpoint || !settings.Model) {
+  if ( !settings.API_Endpoint || !settings.Model) {
     logseq.App.showMsg('Please enter API endpoint, key and model name first', 'warning')
     return
   }
 
   try {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (settings.API_Key) {
+      headers['Authorization'] = `Bearer ${settings.API_Key}`;
+    }
+
     // Test the endpoint with a minimal completion request
     const response = await axios.post(`${settings.API_Endpoint}/chat/completions`, {
       model: settings.Model,
       messages: [{ role: 'user', content: 'test' }],
       max_tokens: 5
     }, {
-      headers: {
-        'Authorization': `Bearer ${settings.API_Key}`,
-        'Content-Type': 'application/json'
-      }
+      headers: headers
     })
     
     if (response.data && response.data.choices) {
