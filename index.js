@@ -3,7 +3,9 @@
  */
 import { settings, initializeSettings, registerSettings } from './settings.js'
 
-async function formatRequest (prompt, systemPrompt = null) {
+async function formatRequest (_prompt, systemPrompt = null) {
+  let prompt = _prompt.join("\n\n");
+
   switch (settings.provider) {
     case 'anthropic':
       return {
@@ -162,6 +164,31 @@ async function main () {
   await initializeSettings()
   registerSettings()
 
+  async function collectContextBlocks(_block) {
+    let contextBlocks = [];
+    let currentBlock = _block;
+
+    while (currentBlock) {
+      // Add the current block itself
+      contextBlocks.unshift(currentBlock.content);
+
+      // Get siblings of the current block
+      let sibling = await logseq.Editor.getPreviousSiblingBlock(currentBlock.uuid)
+      while (sibling) {
+        contextBlocks.unshift(sibling.content);
+        sibling = await logseq.Editor.getPreviousSiblingBlock(sibling.uuid);
+      }
+
+      // Move up to parent
+      if (currentBlock.parent) {
+        currentBlock = await logseq.Editor.getBlock(currentBlock.parent.id);
+      } else {
+        break;
+      }
+    }
+    return contextBlocks;
+  }
+
   // Helper function to handle copilot commands
   async function handleCopilotCommand (systemPrompt = null) {
     const block = await logseq.Editor.getCurrentBlock()
@@ -170,17 +197,20 @@ async function main () {
       return
     }
 
-    let prompt = block.content;
-    if (isPageLink(prompt)) {
-        const pageName = prompt.slice(2, -2);
-        const pageContent = await fetchPageContent(pageName);
-        if (pageContent) {
-            prompt = pageContent;
-        } else {
-            logseq.App.showMsg(`Could not fetch content for page: ${pageName}`, 'warning');
-            return;
-        }
-    }
+    let prompt = await collectContextBlocks(block);
+    console.log(prompt);
+
+    //TODO: move to traversal fuction
+    // if (isPageLink(prompt)) {
+    //     const pageName = prompt.slice(2, -2);
+    //     const pageContent = await fetchPageContent(pageName);
+    //     if (pageContent) {
+    //         prompt = pageContent;
+    //     } else {
+    //         logseq.App.showMsg(`Could not fetch content for page: ${pageName}`, 'warning');
+    //         return;
+    //     }
+    // }
 
     const response = await callLLMAPI(prompt, systemPrompt)
     if (response) {
