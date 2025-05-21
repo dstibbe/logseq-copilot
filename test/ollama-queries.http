@@ -1,0 +1,192 @@
+# Connecting to an LLM in Ollama
+
+### Testing server is live
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "test"
+    }
+  ],
+  "max_tokens": 5
+}
+
+### A simple completion
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Testing - hello world"
+    }
+  ]
+}
+
+### A simple completion - without thinking
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+## /no_think is a soft-switch to disable thinking for QWEN3
+
+{
+  "model": "{{model}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Testing - hello world /no_think"
+    }
+  ]
+}
+
+### Let's try calling some tooling
+
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+## gemma3:4b does not support tools
+
+{
+  "model": "{{model}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather today in Paris?"
+    }
+  ],
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_current_weather",
+        "description": "Get the current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "The location to get the weather for, e.g. San Francisco, CA"
+            },
+            "format": {
+              "type": "string",
+              "description": "The format to return the weather in, e.g. 'celsius' or 'fahrenheit'",
+              "enum": [
+                "celsius",
+                "fahrenheit"
+              ]
+            }
+          },
+          "required": [
+            "location",
+            "format"
+          ]
+        }
+      }
+    }
+  ]
+}
+
+
+### Let's try structured output
+# https://ollama.com/blog/structured-outputs
+
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+## gemma3:4b and qwen3:8b does not support structured output
+
+{
+  "model": "{{model}}",
+  "messages": [{"role": "user", "content": "Tell me about Canada."}],
+  "stream": false,
+  "format": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "capital": {
+        "type": "string"
+      },
+      "languages": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "name",
+      "capital",
+      "languages"
+    ]
+  }
+}
+
+### Let's try "structured" output
+
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+## gemma3:4b and qwen3:8b does not support structured output
+
+{
+  "model": "{{model}}",
+  "messages": [{"role": "user", "content": "Tell me about Canada. Output in JSON format."}],
+  "stream": false
+}
+
+### Let's try "function calling"
+# Force function calling by setting the function in the prompt
+# Example: https://ai.google.dev/gemma/docs/capabilities/function-calling
+
+< {%
+    request.variables.set("multiline_prompt", `You have access to functions. If you decide to invoke any of the function(s),
+you MUST put it in the format of
+{"name": function name, "parameters": dictionary of argument name and its value}
+
+You SHOULD NOT include any other text in the response if you call a function
+[
+  {
+    "name": "get_product_name_by_PID",
+    "description": "Finds the name of a product by its Product ID",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "PID": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "PID"
+      ]
+    }
+  }
+]
+While browsing the product catalog, I came across a product that piqued my
+interest. The product ID is 807ZPKBL9V. Can you help me find the name of this
+product?`.replaceAll(`"`,`\\"`).replaceAll("\n","\\n"));
+%}
+POST http://localhost:11434/v1/chat/completions
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+
+## gemma3:4b and qwen3:8b does not support structured output
+
+{
+  "model": "{{model}}",
+  "messages": [{"role": "user", "content": "{{multiline_prompt}}"}],
+  "stream": false
+}
